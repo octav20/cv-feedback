@@ -14,7 +14,6 @@ interface TableProyectsProps {
 }
 
 const TableProyects: React.FC<TableProyectsProps> = ({ proyects }) => {
-  console.log(proyects);
   return (
     <Table>
       <TableHeader>

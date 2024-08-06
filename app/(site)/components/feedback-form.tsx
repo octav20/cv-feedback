@@ -1,31 +1,37 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import * as z from "zod";
-
 import { Button } from "@/components/ui/button";
 import {
   Form,
-  FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Label } from "@/components/ui/label";
 import TableJobs from "./table-jobs";
 import TableProyects from "./table-proyects";
-// import toast from "react-hot-toast";
+import * as pdfjsLib from "pdfjs-dist";
+import classifyCV from "@/actions/classifyCv";
+import classifyJob from "@/actions/classifyJob";
+import getFeeback from "@/actions/getFeedback";
+import MarkdownRenderer from "@/components/markdown-renderer";
 
+pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+interface CustomParams {
+  message: string;
+}
+
+const errorParams: CustomParams = {
+  message: "Please upload a PDF file",
+};
 const formSchema = z.object({
   history: z.array(z.object({ job: z.string(), workplace: z.string() })),
   aboutMe: z.array(z.object({ name: z.string(), description: z.string() })),
@@ -33,26 +39,18 @@ const formSchema = z.object({
   historyWorkplace: z.string(),
   proyectName: z.string(),
   proyectDescription: z.string(),
-  job: z.string().min(2),
+  job: z.string().min(100, "Job description is too short"),
+  pdfFile: z.instanceof(FileList, errorParams),
 });
 
-const FeedbackForm = () => {
+type FormSchema = z.infer<typeof formSchema>;
+
+const FeedbackForm: React.FC = () => {
   const router = useRouter();
-  //   const initialData = userInfo
-  //     ? {
-  //         fullName: userInfo.full_name,
-  //         carrer: userInfo.carrer,
-  //         aboutMe: userInfo.about_me,
-  //         facebook: userInfo.facebook,
-  //         instagram: userInfo.instagram,
-  //         tiktok: userInfo.tiktok,
-  //         twitter: userInfo.twitter,
-  //       }
-  //     : {};
-
   const [isLoading, setIsLoading] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormSchema>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       history: [],
@@ -62,69 +60,100 @@ const FeedbackForm = () => {
       proyectName: "",
       proyectDescription: "",
       job: "",
+      pdfFile: undefined,
     },
   });
 
   const isDirty = form.formState.isDirty;
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const typedArray = new Uint8Array(arrayBuffer);
+
+    const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+    const textContent: string[] = [];
+
+    for (let i = 0; i < pdf.numPages; i++) {
+      const page = await pdf.getPage(i + 1);
+      const text = await page.getTextContent();
+      textContent.push(text.items.map((item: any) => item.str).join(" "));
+    }
+
+    return textContent.join("\n");
+  };
+
+  const onSubmit: SubmitHandler<FormSchema> = async (values) => {
     setIsLoading(true);
-  }
+    console.log(values);
 
-  const addJob = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
+    const file = values.pdfFile?.[0];
+    if (file) {
+      const text = await extractTextFromPDF(file);
+      // console.log("Extracted Text: ", text);
+      const cvObj = (await classifyCV(text)) as any;
+      const jobObj = (await classifyJob(values.job)) as any;
+      const feedbackText = await getFeeback(cvObj, jobObj);
 
-    if (
-      form.getValues().historyJob.length === 0 ||
-      form.getValues().historyWorkplace.length === 0
-    ) {
-      return;
+      setFeedbackText(feedbackText);
     }
-    form.setValue("history", [
-      ...form.getValues().history,
-      {
-        job: form.getValues().historyJob,
-        workplace: form.getValues().historyWorkplace,
-      },
-    ]);
-    form.setValue("historyJob", "");
-    form.setValue("historyWorkplace", "");
+
+    setIsLoading(false);
     router.refresh();
   };
-  const addProyect = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
 
-    if (
-      form.getValues().proyectName.length === 0 ||
-      form.getValues().proyectDescription.length === 0
-    ) {
-      return;
-    }
-    form.setValue("aboutMe", [
-      ...form.getValues().aboutMe,
-      {
-        name: form.getValues().proyectName,
-        description: form.getValues().proyectDescription,
-      },
-    ]);
-    form.setValue("proyectName", "");
-    form.setValue("proyectDescription", "");
-    router.refresh();
-  };
+  // const addJob = (e: React.MouseEvent<HTMLButtonElement>) => {
+  //   e.preventDefault();
+  //   if (
+  //     form.getValues().historyJob.length === 0 ||
+  //     form.getValues().historyWorkplace.length === 0
+  //   ) {
+  //     return;
+  //   }
+  //   form.setValue("history", [
+  //     ...form.getValues().history,
+  //     {
+  //       job: form.getValues().historyJob,
+  //       workplace: form.getValues().historyWorkplace,
+  //     },
+  //   ]);
+  //   form.setValue("historyJob", "");
+  //   form.setValue("historyWorkplace", "");
+  //   router.refresh();
+  // };
+
+  // const addProyect = (e: React.MouseEvent<HTMLButtonElement>) => {
+  //   e.preventDefault();
+  //   if (
+  //     form.getValues().proyectName.length === 0 ||
+  //     form.getValues().proyectDescription.length === 0
+  //   ) {
+  //     return;
+  //   }
+  //   form.setValue("aboutMe", [
+  //     ...form.getValues().aboutMe,
+  //     {
+  //       name: form.getValues().proyectName,
+  //       description: form.getValues().proyectDescription,
+  //     },
+  //   ]);
+  //   form.setValue("proyectName", "");
+  //   form.setValue("proyectDescription", "");
+  //   router.refresh();
+  // };
+
   return (
     <div>
-      {/* <h1 className="text-xl text-center m-4">Feedback CV</h1> */}
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col md:grid  md:grid-cols-2 gap-x-4 gap-y-4"
+          className="flex flex-row justify-center  b-4 gap-x-4 gap-y-4"
         >
-          <div className="border border-gray-400 rounded-sm p-2">
+          {/* <div className="border border-gray-400 rounded-sm p-2">
             <FormField
               control={form.control}
               name="history"
               render={({ field }) => (
-                <FormItem className="max-h-48 overflow-y-scroll mb-1">
+                <FormItem className="mb-1">
                   <FormLabel>History</FormLabel>
                   <TableJobs jobs={form.getValues().history} />
 
@@ -153,12 +182,7 @@ const FeedbackForm = () => {
                       placeholder="Workplace"
                       {...field}
                     />
-                    <Button
-                      type="button"
-                      onClick={(e) => {
-                        addJob(e);
-                      }}
-                    >
+                    <Button type="button" onClick={(e) => addJob(e)}>
                       Add Job
                     </Button>
                     <FormMessage />
@@ -166,15 +190,13 @@ const FeedbackForm = () => {
                 )}
               />
             </div>
-
             <FormField
               control={form.control}
               name="aboutMe"
               render={({ field }) => (
-                <FormItem className="max-h-48 overflow-y-scroll mb-1">
+                <FormItem className="mb-1">
                   <FormLabel>About Me</FormLabel>
                   <TableProyects proyects={form.getValues().aboutMe} />
-
                   <FormMessage />
                 </FormItem>
               )}
@@ -204,12 +226,7 @@ const FeedbackForm = () => {
                       placeholder="Description"
                       {...field}
                     />
-                    <Button
-                      type="button"
-                      onClick={(e) => {
-                        addProyect(e);
-                      }}
-                    >
+                    <Button type="button" onClick={(e) => addProyect(e)}>
                       Add Proyect
                     </Button>
                     <FormMessage />
@@ -217,25 +234,43 @@ const FeedbackForm = () => {
                 )}
               />
             </div>
-          </div>
-          <div className="border border-gray-400 rounded-sm p-2 w-full ">
+          
+          </div> */}
+          <div className="flex flex-col border border-gray-400 rounded-sm p-2 w-full mb-28 ">
+            <FormField
+              control={form.control}
+              name="pdfFile"
+              render={({ field }) => (
+                <FormItem className="mb-1">
+                  <FormLabel>Upload your CV</FormLabel>
+                  <Input
+                    type="file"
+                    disabled={isLoading}
+                    onChange={(e) =>
+                      field.onChange(e.target.files as unknown as FileList)
+                    }
+                    accept=".pdf"
+                  />
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="job"
               render={({ field }) => (
                 <FormItem>
-                  <Input
+                  <FormLabel>Job Description</FormLabel>
+                  <Textarea
                     className="w-full h-28"
                     disabled={isLoading}
                     placeholder="Job Description or Link"
                     {...field}
                   />
-
                   <FormMessage />
                 </FormItem>
               )}
             />
-
             <Button
               disabled={isLoading || !isDirty}
               className="col-span-2 w-full my-2"
@@ -243,24 +278,29 @@ const FeedbackForm = () => {
             >
               Submit
             </Button>
-            <Tabs defaultValue="feedback" className="">
+            <Tabs defaultValue="feedback" className="flex-grow flex flex-col">
               <TabsList className="w-full">
-                <TabsTrigger className="w-1/2" value="feedback">
+                <TabsTrigger className="w-full" value="feedback">
                   Feedback
                 </TabsTrigger>
-                <TabsTrigger className="w-1/2" value="metadata">
+                {/* <TabsTrigger className="w-1/2" value="metadata">
                   Metadata
-                </TabsTrigger>
+                </TabsTrigger> */}
               </TabsList>
-              <TabsContent value="feedback">
-                <Textarea readOnly value="feedback" />
+              <TabsContent className="flex-grow" value="feedback">
+                {/* <Textarea
+                  className="h-full w-full"
+                  value={cvText}
+                  onChange={(e) => {}}
+                /> */}
+                <MarkdownRenderer content={feedbackText} />
               </TabsContent>
-              <TabsContent value="metadata">
+              {/* <TabsContent value="metadata">
                 <div className="flex flex-row gap-x-1">
                   <Textarea readOnly value="metadata" />
                   <Textarea readOnly value="habilidades necesarias" />
                 </div>
-              </TabsContent>
+              </TabsContent> */}
             </Tabs>
           </div>
         </form>
@@ -270,3 +310,6 @@ const FeedbackForm = () => {
 };
 
 export default FeedbackForm;
+function description(arg0: string): any {
+  throw new Error("Function not implemented.");
+}

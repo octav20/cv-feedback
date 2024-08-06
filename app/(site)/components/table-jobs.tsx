@@ -14,7 +14,6 @@ interface TableJobsProps {
 }
 
 const TableJobs: React.FC<TableJobsProps> = ({ jobs }) => {
-  console.log(jobs);
   return (
     <Table>
       <TableHeader>
