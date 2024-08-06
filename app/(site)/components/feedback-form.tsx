@@ -1,5 +1,4 @@
 "use client";
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, SubmitHandler } from "react-hook-form";
 import * as z from "zod";
@@ -25,6 +24,7 @@ import getFeeback from "@/actions/getFeedback";
 import MarkdownRenderer from "@/components/markdown-renderer";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
 interface CustomParams {
   message: string;
 }
@@ -32,6 +32,7 @@ interface CustomParams {
 const errorParams: CustomParams = {
   message: "Please upload a PDF file",
 };
+
 const formSchema = z.object({
   history: z.array(z.object({ job: z.string(), workplace: z.string() })),
   aboutMe: z.array(z.object({ name: z.string(), description: z.string() })),
@@ -40,10 +41,7 @@ const formSchema = z.object({
   proyectName: z.string(),
   proyectDescription: z.string(),
   job: z.string().min(100, "Job description is too short"),
-  pdfFile: z.instanceof(
-    typeof window !== "undefined" ? FileList : Object,
-    errorParams
-  ),
+  pdfFile: z.instanceof(FileList, errorParams),
 });
 
 type FormSchema = z.infer<typeof formSchema>;
@@ -89,8 +87,9 @@ const FeedbackForm: React.FC = () => {
     setIsLoading(true);
     console.log(values);
 
-    const file = values.pdfFile?.[0];
-    if (file) {
+    const pdfFile = values.pdfFile;
+    if (pdfFile instanceof FileList && pdfFile.length > 0) {
+      const file = pdfFile[0];
       const text = await extractTextFromPDF(file);
       console.log("Extracted Text: ", text);
       const cvObj = (await classifyCV(text)) as any;
@@ -104,46 +103,6 @@ const FeedbackForm: React.FC = () => {
     router.refresh();
   };
 
-  // const addJob = (e: React.MouseEvent<HTMLButtonElement>) => {
-  //   e.preventDefault();
-  //   if (
-  //     form.getValues().historyJob.length === 0 ||
-  //     form.getValues().historyWorkplace.length === 0
-  //   ) {
-  //     return;
-  //   }
-  //   form.setValue("history", [
-  //     ...form.getValues().history,
-  //     {
-  //       job: form.getValues().historyJob,
-  //       workplace: form.getValues().historyWorkplace,
-  //     },
-  //   ]);
-  //   form.setValue("historyJob", "");
-  //   form.setValue("historyWorkplace", "");
-  //   router.refresh();
-  // };
-
-  // const addProyect = (e: React.MouseEvent<HTMLButtonElement>) => {
-  //   e.preventDefault();
-  //   if (
-  //     form.getValues().proyectName.length === 0 ||
-  //     form.getValues().proyectDescription.length === 0
-  //   ) {
-  //     return;
-  //   }
-  //   form.setValue("aboutMe", [
-  //     ...form.getValues().aboutMe,
-  //     {
-  //       name: form.getValues().proyectName,
-  //       description: form.getValues().proyectDescription,
-  //     },
-  //   ]);
-  //   form.setValue("proyectName", "");
-  //   form.setValue("proyectDescription", "");
-  //   router.refresh();
-  // };
-
   return (
     <div>
       <Form {...form}>
@@ -151,94 +110,6 @@ const FeedbackForm: React.FC = () => {
           onSubmit={form.handleSubmit(onSubmit)}
           className="flex flex-row justify-center  b-4 gap-x-4 gap-y-4"
         >
-          {/* <div className="border border-gray-400 rounded-sm p-2">
-            <FormField
-              control={form.control}
-              name="history"
-              render={({ field }) => (
-                <FormItem className="mb-1">
-                  <FormLabel>History</FormLabel>
-                  <TableJobs jobs={form.getValues().history} />
-
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex flex-row gap-x-2">
-              <FormField
-                control={form.control}
-                name="historyJob"
-                render={({ field }) => (
-                  <FormItem className="mb-1">
-                    <Input disabled={isLoading} placeholder="Job" {...field} />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="historyWorkplace"
-                render={({ field }) => (
-                  <FormItem>
-                    <Input
-                      disabled={isLoading}
-                      placeholder="Workplace"
-                      {...field}
-                    />
-                    <Button type="button" onClick={(e) => addJob(e)}>
-                      Add Job
-                    </Button>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <FormField
-              control={form.control}
-              name="aboutMe"
-              render={({ field }) => (
-                <FormItem className="mb-1">
-                  <FormLabel>About Me</FormLabel>
-                  <TableProyects proyects={form.getValues().aboutMe} />
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="flex flex-row gap-x-2">
-              <FormField
-                control={form.control}
-                name="proyectName"
-                render={({ field }) => (
-                  <FormItem className="mb-1">
-                    <Input
-                      disabled={isLoading}
-                      placeholder="Proyect"
-                      {...field}
-                    />
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="proyectDescription"
-                render={({ field }) => (
-                  <FormItem>
-                    <Input
-                      disabled={isLoading}
-                      placeholder="Description"
-                      {...field}
-                    />
-                    <Button type="button" onClick={(e) => addProyect(e)}>
-                      Add Proyect
-                    </Button>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-          
-          </div> */}
           <div className="flex flex-col border border-gray-400 rounded-sm p-2 w-full mb-28 ">
             <FormField
               control={form.control}
@@ -286,24 +157,10 @@ const FeedbackForm: React.FC = () => {
                 <TabsTrigger className="w-full" value="feedback">
                   Feedback
                 </TabsTrigger>
-                {/* <TabsTrigger className="w-1/2" value="metadata">
-                  Metadata
-                </TabsTrigger> */}
               </TabsList>
               <TabsContent className="flex-grow" value="feedback">
-                {/* <Textarea
-                  className="h-full w-full"
-                  value={cvText}
-                  onChange={(e) => {}}
-                /> */}
                 <MarkdownRenderer content={feedbackText} />
               </TabsContent>
-              {/* <TabsContent value="metadata">
-                <div className="flex flex-row gap-x-1">
-                  <Textarea readOnly value="metadata" />
-                  <Textarea readOnly value="habilidades necesarias" />
-                </div>
-              </TabsContent> */}
             </Tabs>
           </div>
         </form>
@@ -313,6 +170,3 @@ const FeedbackForm: React.FC = () => {
 };
 
 export default FeedbackForm;
-function description(arg0: string): any {
-  throw new Error("Function not implemented.");
-}
