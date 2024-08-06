@@ -40,7 +40,10 @@ const formSchema = z.object({
   proyectName: z.string(),
   proyectDescription: z.string(),
   job: z.string().min(100, "Job description is too short"),
-  pdfFile: z.instanceof(FileList, errorParams),
+  pdfFile: z.instanceof(
+    typeof window !== "undefined" ? FileList : Object,
+    errorParams
+  ),
 });
 
 type FormSchema = z.infer<typeof formSchema>;
