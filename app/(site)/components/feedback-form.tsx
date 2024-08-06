@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import TableJobs from "./table-jobs";
 import TableProyects from "./table-proyects";
-import * as pdfjsLib from "pdfjs-dist";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import classifyCV from "@/actions/classifyCv";
 import classifyJob from "@/actions/classifyJob";
 import getFeeback from "@/actions/getFeedback";
@@ -89,7 +89,7 @@ const FeedbackForm: React.FC = () => {
     const file = values.pdfFile?.[0];
     if (file) {
       const text = await extractTextFromPDF(file);
-      // console.log("Extracted Text: ", text);
+      console.log("Extracted Text: ", text);
       const cvObj = (await classifyCV(text)) as any;
       const jobObj = (await classifyJob(values.job)) as any;
       const feedbackText = await getFeeback(cvObj, jobObj);
